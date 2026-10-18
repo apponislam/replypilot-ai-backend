@@ -17,8 +17,16 @@ export default {
     server_url: process.env.SERVER_URL || `http://${process.env.IP || 'localhost'}:${process.env.PORT || 5000}`,
     resend: {
         api_key: process.env.RESEND_API_KEY,
-        from_email: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+        from_email: process.env.RESEND_FROM_EMAIL || "replypilotai@apponislam.top",
+        webhook_secret: process.env.RESEND_WEBHOOK_SECRET,
     },
+    ollama: {
+        host: process.env.OLLAMA_HOST || "https://ollama.apponislam.top",
+        model: process.env.OLLAMA_MODEL || "llama3.2:3b",
+    },
+
+
+
     initialAdmin: {
         name: process.env.INITIAL_ADMIN_NAME,
         email: process.env.INITIAL_ADMIN_EMAIL,
