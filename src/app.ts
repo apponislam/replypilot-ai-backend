@@ -26,15 +26,14 @@ app.post(
         }
         next();
     },
-    emailControllers.handleResendWebhook
+    emailControllers.handleResendWebhook,
 );
 
 const corsOptions = {
     origin: [
         "http://localhost:3000",
-        "http://localhost:3030",
-        "http://10.10.7.24:3030",
-        "http://10.10.26.171:3030",
+        "http://localhost:3057",
+        "http://10.10.7.24:3057",
         "https://replypilot.apponislam.top",
         "http://replypilot.apponislam.top",
         "https://replypilotapi.apponislam.top",
@@ -47,16 +46,14 @@ const corsOptions = {
     credentials: true,
 };
 
-
 app.use(cors(corsOptions));
-
 
 app.use(
     express.json({
         verify: (req: any, _res, buf) => {
             req.rawBody = buf.toString("utf8");
         },
-    })
+    }),
 );
 app.use(express.urlencoded({ extended: true }));
 

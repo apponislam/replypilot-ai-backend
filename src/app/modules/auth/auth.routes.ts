@@ -8,8 +8,6 @@ const router = Router();
 router.post("/register", uploadProfileImage, authControllers.register);
 router.post("/login", authControllers.login);
 router.get("/verify-email", authControllers.verifyEmail);
-router.get("/check-email-verified", authControllers.checkEmailVerified);
-router.post("/check-email-verified", authControllers.checkEmailVerified);
 router.post("/resend-verification", authControllers.resendVerificationEmail);
 
 router.post("/refresh-token", authControllers.refreshAccessToken);
@@ -19,7 +17,9 @@ router.post("/resend-otp", authControllers.resendOtp);
 router.post("/reset-password", authControllers.resetPassword);
 // Protected routes (require auth)
 router.get("/me", auth(), authControllers.getMe);
+router.get("/check-email-verified", auth(), authControllers.checkEmailVerified);
 router.post("/logout", auth(), authControllers.logout);
+
 router.patch("/profile", auth(), uploadProfileImage, authControllers.updateProfile);
 router.post("/change-password", auth(), authControllers.changePassword);
 router.delete("/delete-account", auth(), authControllers.deleteAccount);

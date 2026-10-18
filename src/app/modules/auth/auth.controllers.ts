@@ -136,13 +136,7 @@ const resendVerificationEmail = catchAsync(async (req: Request, res: Response) =
 });
 
 const checkEmailVerified = catchAsync(async (req: Request, res: Response) => {
-    const email = (req.query.email as string) || req.body?.email;
-
-    if (!email) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Email is required");
-    }
-
-    const result = await authServices.checkEmailVerified(email);
+    const result = await authServices.checkEmailVerified(req.user._id);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,
@@ -151,6 +145,8 @@ const checkEmailVerified = catchAsync(async (req: Request, res: Response) => {
         data: result,
     });
 });
+
+
 
 const getMe = catchAsync(async (req: Request, res: Response) => {
 

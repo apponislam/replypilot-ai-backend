@@ -173,15 +173,11 @@ const resendVerificationEmail = async (email: string) => {
     return { message: "Verification email sent successfully." };
 };
 
-const checkEmailVerified = async (email: string) => {
+const checkEmailVerified = async (userId: string) => {
+    const user = await UserModel.findById(userId);
 
-    if (!email) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Email is required");
-    }
-
-    const user = await UserModel.findOne({ email });
     if (!user) {
-        throw new ApiError(httpStatus.NOT_FOUND, "User with this email was not found.");
+        throw new ApiError(httpStatus.NOT_FOUND, "User was not found.");
     }
 
     return {
@@ -189,6 +185,8 @@ const checkEmailVerified = async (email: string) => {
         isEmailVerified: Boolean(user.isEmailVerified),
     };
 };
+
+
 
 const getUserById = async (userId: string) => {
 
