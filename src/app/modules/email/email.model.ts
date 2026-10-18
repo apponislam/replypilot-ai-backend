@@ -11,15 +11,27 @@ const AttachmentSchema = new Schema(
         contentId: { type: String },
         downloadUrl: { type: String },
     },
-    { _id: false }
+    { _id: false, versionKey: false }
 );
 
 const EmailSchema = new Schema<IEmail>(
     {
+        type: {
+            type: String,
+            enum: ["INBOUND", "OUTBOUND"],
+            required: true,
+            default: "INBOUND",
+            index: true,
+        },
+        replyTo: {
+            type: Schema.Types.ObjectId,
+            ref: "Email",
+            default: null,
+            index: true,
+        },
         emailId: {
             type: String,
-            required: true,
-            unique: true,
+            sparse: true,
             index: true,
         },
         messageId: {
@@ -43,10 +55,6 @@ const EmailSchema = new Schema<IEmail>(
             type: [String],
             default: [],
         },
-        replyTo: {
-            type: [String],
-            default: [],
-        },
         subject: {
             type: String,
             default: "(No Subject)",
@@ -64,44 +72,29 @@ const EmailSchema = new Schema<IEmail>(
             type: String,
             default: "",
         },
-        aiReply: {
-            suggestedReply: { type: String },
-            model: { type: String },
-            tone: { type: String, default: "professional" },
-            generatedAt: { type: Date },
-            sentAt: { type: Date },
-            sentReply: { type: String },
-            status: {
-                type: String,
-                enum: ["DRAFT", "SENT", "DISCARDED"],
-                default: "DRAFT",
-            },
+        aiDraft: {
+            type: String,
+            default: "",
         },
-        headers: {
-            type: Schema.Types.Mixed,
-            default: {},
+        status: {
+            type: String,
+            enum: ["UNREAD", "READ", "REPLIED", "SENT", "ARCHIVED"],
+            default: "UNREAD",
+            index: true,
         },
-
+        sentBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+        },
         attachments: {
             type: [AttachmentSchema],
             default: [],
         },
-        status: {
-            type: String,
-            enum: ["RECEIVED", "PROCESSING", "REPLIED", "ARCHIVED", "FAILED"],
-            default: "RECEIVED",
-            index: true,
-        },
-        eventType: {
-            type: String,
-            default: "email.received",
-        },
-        rawEvent: {
-            type: Schema.Types.Mixed,
-        },
     },
     {
         timestamps: true,
+        versionKey: false,
     }
 );
 

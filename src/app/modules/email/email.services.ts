@@ -3,9 +3,10 @@ import httpStatus from "http-status";
 import ApiError from "../../../errors/ApiError";
 import config from "../../config";
 import { getReceivedEmail, sendMail } from "../../../utils/resend";
-import { generateEmailReply, summarizeEmail, listOllamaModels } from "../../../utils/ollama";
+import { generateEmailReply, summarizeEmail } from "../../../utils/ollama";
+import { settingServices } from "../setting/setting.services";
 import { EmailModel } from "./email.model";
-import { IEmail, IResendWebhookEvent, InboundEmailStatus } from "./email.interface";
+import { IEmail, IResendWebhookEvent, EmailStatus } from "./email.interface";
 import { sendToRoom } from "../../socket/socket";
 
 /**
@@ -74,12 +75,11 @@ const processWebhookEvent = async (event: IResendWebhookEvent) => {
 };
 
 /**
- * Handle incoming email.received event:
- * - Prevents duplicate processing (idempotent)
- * - Fetches full email body (HTML, Text, Attachments) from Resend Receiving API
- * - Stores received email in MongoDB
- * - Automatically triggers local Ollama AI to generate summary & suggested reply in the background
- * - Emits real-time notifications to admin room via Socket.io
+ * Handle incoming email.received event from Resend:
+ * 1. Saves INBOUND email record.
+ * 2. Generates summary & AI draft reply using Ollama and saved Setting instructions.
+ * 3. If Setting.isAutoReply is TRUE -> sends reply via Resend and creates OUTBOUND record referencing this email.
+ *    If Setting.isAutoReply is FALSE -> saves aiDraft for Admin to review and click "Send" from Dashboard.
  */
 const handleInboundEmailReceived = async (event: IResendWebhookEvent) => {
     const emailId = event.data?.email_id || event.data?.id;
@@ -90,7 +90,7 @@ const handleInboundEmailReceived = async (event: IResendWebhookEvent) => {
     }
 
     // Check if already processed (idempotency)
-    const existing = await EmailModel.findOne({ emailId });
+    const existing = await EmailModel.findOne({ emailId, type: "INBOUND" });
     if (existing) {
         console.log(`🔁 [Resend Webhook] Email ${emailId} already processed. Skipping duplicate.`);
         return existing;
@@ -105,7 +105,6 @@ const handleInboundEmailReceived = async (event: IResendWebhookEvent) => {
     const subject = fullEmailData?.subject || event.data?.subject || "(No Subject)";
     const textBody = fullEmailData?.text || "";
     const htmlBody = fullEmailData?.html || "";
-    const headers = fullEmailData?.headers || {};
     const attachments = (fullEmailData?.attachments || event.data?.attachments || []).map((att: any) => ({
         id: att.id,
         filename: att.filename,
@@ -116,88 +115,71 @@ const handleInboundEmailReceived = async (event: IResendWebhookEvent) => {
         downloadUrl: att.download_url || att.downloadUrl,
     }));
 
+    // 1. Create Inbound Email Record
     const inboundEmail = await EmailModel.create({
+        type: "INBOUND",
         emailId,
         messageId: fullEmailData?.message_id || event.data?.message_id,
         from: fromAddress,
         to: Array.isArray(toRecipients) ? toRecipients : [toRecipients],
         cc: fullEmailData?.cc || event.data?.cc || [],
         bcc: fullEmailData?.bcc || event.data?.bcc || [],
-        replyTo: fullEmailData?.reply_to || [],
         subject,
         text: textBody,
         html: htmlBody,
-        headers,
         attachments,
-        status: "RECEIVED",
-        eventType: "email.received",
-        rawEvent: event,
+        status: "UNREAD",
     });
 
-    console.log(`✅ [Resend Webhook] Successfully saved inbound email: "${subject}" from "${fromAddress}"`);
+    console.log(`✅ [Resend Webhook] Saved incoming email: "${subject}" from "${fromAddress}"`);
 
-    // Notify connected admin sockets in real-time
-    try {
-        sendToRoom("admins", "new_inbound_email", {
-            _id: inboundEmail._id,
-            emailId: inboundEmail.emailId,
-            from: inboundEmail.from,
-            to: inboundEmail.to,
-            subject: inboundEmail.subject,
-            createdAt: inboundEmail.createdAt,
-            hasAttachments: attachments.length > 0,
-        });
-    } catch (socketErr) {
-        console.warn("⚠️ [Resend Webhook] Failed to emit socket event:", socketErr);
-    }
+    // Notify connected admins
+    sendToRoom("admins", "new_inbound_email", inboundEmail);
 
-    // Trigger local Ollama AI to generate summary & suggested reply in background
+    // 2. Background AI Processing & Auto-Reply
     (async () => {
         try {
+            const settings = await settingServices.getSettings();
             const content = textBody || htmlBody || subject;
-            console.log(`🤖 [Ollama] Auto-generating AI reply for email: "${subject}"...`);
 
+            console.log(`🤖 [Ollama] Generating draft for incoming email: "${subject}"...`);
             const [aiResult, summary] = await Promise.all([
                 generateEmailReply({
                     from: fromAddress,
                     subject,
                     content,
-                    tone: "professional",
+                    tone: settings.tone,
+                    instructions: settings.instructions,
                 }).catch((err) => {
-                    console.warn("⚠️ [Ollama] Auto reply generation failed:", err.message);
+                    console.warn("⚠️ [Ollama] Reply generation failed:", err.message);
                     return null;
                 }),
                 summarizeEmail(subject, content).catch(() => ""),
             ]);
 
-            if (aiResult || summary) {
-                const updated = await EmailModel.findByIdAndUpdate(
-                    inboundEmail._id,
-                    {
-                        ...(summary && { summary }),
-                        ...(aiResult && {
-                            aiReply: {
-                                suggestedReply: aiResult.reply,
-                                model: aiResult.model,
-                                tone: "professional",
-                                generatedAt: new Date(),
-                                status: "DRAFT",
-                            },
-                        }),
-                    },
-                    { returnDocument: "after" }
-                );
+            const aiDraft = aiResult?.reply || "";
 
-                console.log(`✨ [Ollama] AI suggested reply ready for email: "${subject}"`);
-                sendToRoom("admins", "email_ai_ready", {
-                    _id: inboundEmail._id,
-                    emailId: inboundEmail.emailId,
-                    summary: updated?.summary,
-                    aiReply: updated?.aiReply,
-                });
+            // Update inbound email with summary & draft
+            const updatedInbound = await EmailModel.findByIdAndUpdate(
+                inboundEmail._id,
+                {
+                    ...(summary && { summary }),
+                    ...(aiDraft && { aiDraft }),
+                },
+                { returnDocument: "after" }
+            );
+
+            sendToRoom("admins", "email_draft_ready", updatedInbound);
+
+            // 3. If Auto-Reply is enabled, send reply automatically!
+            if (settings.isAutoReply && aiDraft) {
+                console.log(`🚀 [Auto-Reply] Auto-reply is ON. Sending reply to ${fromAddress}...`);
+                await sendOutboundReply(inboundEmail._id.toString(), aiDraft, null);
+            } else {
+                console.log(`ℹ️ [Auto-Reply] Auto-reply is OFF. Draft saved for admin review.`);
             }
         } catch (err: any) {
-            console.error("⚠️ [Ollama] Background AI processing failed:", err.message);
+            console.error("⚠️ [Email Background Processing Error]:", err.message);
         }
     })();
 
@@ -205,9 +187,9 @@ const handleInboundEmailReceived = async (event: IResendWebhookEvent) => {
 };
 
 /**
- * Generate or re-generate an AI reply on demand with custom tone and instructions using Ollama.
+ * Generate or re-generate an AI draft reply for an email on demand (Admin button).
  */
-const generateAiReply = async (
+const generateDraftReply = async (
     id: string,
     options: {
         tone?: "professional" | "friendly" | "concise" | "formal" | "casual";
@@ -215,108 +197,124 @@ const generateAiReply = async (
         customPrompt?: string;
     }
 ): Promise<IEmail> => {
-    const email = await getEmailById(id);
+    const email = await EmailModel.findById(id);
     if (!email) {
         throw new ApiError(httpStatus.NOT_FOUND, "Email not found");
     }
 
+    const settings = await settingServices.getSettings();
     const content = email.text || email.html || email.subject;
-    const tone = options.tone || (email.aiReply?.tone as any) || "professional";
+    const tone = options.tone || settings.tone || "professional";
+    const instructions = options.instructions || settings.instructions;
 
     const aiResult = await generateEmailReply({
         from: email.from,
         subject: email.subject,
         content,
         tone,
-        instructions: options.instructions,
+        instructions,
         customPrompt: options.customPrompt,
     });
 
     const updated = await EmailModel.findByIdAndUpdate(
         email._id,
         {
-            aiReply: {
-                suggestedReply: aiResult.reply,
-                model: aiResult.model,
-                tone,
-                generatedAt: new Date(),
-                status: "DRAFT",
-            },
+            aiDraft: aiResult.reply,
         },
         { returnDocument: "after" }
     );
 
     if (!updated) {
-        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to update email with AI reply");
+        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to update draft");
     }
 
     return updated;
 };
 
 /**
- * Send reply to the sender using Resend.
+ * Send an outbound reply to an inbound email (Admin Send Button or Auto-Pilot):
+ * 1. Sends email via Resend.
+ * 2. Creates a new OUTBOUND Email record with replyTo: inboundEmail._id (as reference!).
+ * 3. Updates inbound email status to "REPLIED".
  */
-const sendReply = async (id: string, replyText?: string): Promise<IEmail> => {
-    const email = await getEmailById(id);
-    if (!email) {
-        throw new ApiError(httpStatus.NOT_FOUND, "Email not found");
+const sendOutboundReply = async (
+    inboundEmailId: string,
+    replyText?: string,
+    adminUserId?: string | null
+): Promise<{ inboundEmail: IEmail; outboundEmail: IEmail }> => {
+    const inboundEmail = await EmailModel.findById(inboundEmailId);
+    if (!inboundEmail) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Incoming email not found");
     }
 
-    const textToSend = replyText || email.aiReply?.suggestedReply;
+    const textToSend = replyText || inboundEmail.aiDraft;
     if (!textToSend) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "No reply content provided or generated");
+        throw new ApiError(httpStatus.BAD_REQUEST, "No reply content to send. Generate or enter a reply first.");
     }
 
-    // Format HTML reply
-    const htmlReply = `
-        <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+    const replySubject = inboundEmail.subject.startsWith("Re:")
+        ? inboundEmail.subject
+        : `Re: ${inboundEmail.subject}`;
+
+    const htmlContent = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
             <p>${textToSend.replace(/\n/g, "<br/>")}</p>
             <br/>
             <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;"/>
             <p style="font-size: 12px; color: #888;">
-                In reply to your message: <em>"${email.subject}"</em>
+                In reply to your message: <em>"${inboundEmail.subject}"</em>
             </p>
         </div>
     `;
 
-    const subject = email.subject.startsWith("Re:") ? email.subject : `Re: ${email.subject}`;
-
-    const resendResult = await sendMail(email.from, subject, htmlReply);
+    // Send email via Resend
+    const resendResult = await sendMail(inboundEmail.from, replySubject, htmlContent);
     if (!resendResult) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send email via Resend");
     }
 
-    const updated = await EmailModel.findByIdAndUpdate(
-        email._id,
-        {
-            status: "REPLIED",
-            aiReply: {
-                ...((email.aiReply as any)?.toObject ? (email.aiReply as any).toObject() : email.aiReply),
-                sentReply: textToSend,
-                sentAt: new Date(),
-                status: "SENT",
-            },
+    // Create Outbound Email Record referencing the inbound email
+    const outboundEmail = await EmailModel.create({
+        type: "OUTBOUND",
+        replyTo: inboundEmail._id,
+        from: config.resend.from_email || "replypilotai@apponislam.top",
+        to: [inboundEmail.from],
+        subject: replySubject,
+        text: textToSend,
+        html: htmlContent,
+        status: "SENT",
+        sentBy: adminUserId ? (adminUserId as any) : null,
+    });
 
-        },
+    // Mark original email as REPLIED
+    const updatedInbound = await EmailModel.findByIdAndUpdate(
+        inboundEmail._id,
+        { status: "REPLIED" },
         { returnDocument: "after" }
     );
 
-    if (!updated) {
-        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to update email status after sending");
-    }
+    sendToRoom("admins", "email_replied", {
+        inboundEmailId: inboundEmail._id,
+        outboundReplyId: outboundEmail._id,
+    });
 
-    return updated;
+    return {
+        inboundEmail: updatedInbound!,
+        outboundEmail,
+    };
 };
 
 /**
- * Get all emails with filtering and pagination.
+ * Get all incoming emails with pagination, search, status filter (Admin).
  */
-const getAllEmails = async (query: Record<string, any>) => {
+const getAllInboundEmails = async (query: Record<string, any>) => {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.max(1, Number(query.limit) || 20);
     const skip = (page - 1) * limit;
 
-    const filter: Record<string, any> = {};
+    const filter: Record<string, any> = {
+        type: "INBOUND",
+    };
 
     if (query.status) {
         filter.status = query.status;
@@ -336,8 +334,7 @@ const getAllEmails = async (query: Record<string, any>) => {
         EmailModel.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limit)
-            .select("-rawEvent"),
+            .limit(limit),
         EmailModel.countDocuments(filter),
     ]);
 
@@ -353,23 +350,36 @@ const getAllEmails = async (query: Record<string, any>) => {
 };
 
 /**
- * Get single email by MongoDB ID or Resend emailId.
+ * Get single email with thread of replies (where replyTo = email._id).
  */
-const getEmailById = async (id: string): Promise<IEmail | null> => {
+const getEmailWithReplies = async (id: string) => {
     let email = null;
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
-        email = await EmailModel.findById(id);
+        email = await EmailModel.findById(id).populate("replyTo");
     }
     if (!email) {
-        email = await EmailModel.findOne({ emailId: id });
+        email = await EmailModel.findOne({ emailId: id }).populate("replyTo");
     }
-    return email;
+
+    if (!email) {
+        return null;
+    }
+
+    // Find all replies that reference this email
+    const replies = await EmailModel.find({ replyTo: email._id })
+        .populate("sentBy", "name email role")
+        .sort({ createdAt: 1 });
+
+    return {
+        email,
+        replies,
+    };
 };
 
 /**
- * Update email status (e.g. PROCESSING, REPLIED, ARCHIVED).
+ * Update email status (e.g. READ, ARCHIVED).
  */
-const updateEmailStatus = async (id: string, status: InboundEmailStatus): Promise<IEmail | null> => {
+const updateEmailStatus = async (id: string, status: EmailStatus): Promise<IEmail | null> => {
     return await EmailModel.findByIdAndUpdate(
         id,
         { status },
@@ -378,28 +388,21 @@ const updateEmailStatus = async (id: string, status: InboundEmailStatus): Promis
 };
 
 /**
- * Delete email.
+ * Delete email and any related replies.
  */
 const deleteEmail = async (id: string): Promise<IEmail | null> => {
+    await EmailModel.deleteMany({ replyTo: id });
     return await EmailModel.findByIdAndDelete(id);
-};
-
-/**
- * List available Ollama models.
- */
-const getOllamaModels = async () => {
-    return await listOllamaModels();
 };
 
 export const emailServices = {
     verifyWebhookSignature,
     processWebhookEvent,
     handleInboundEmailReceived,
-    generateAiReply,
-    sendReply,
-    getOllamaModels,
-    getAllEmails,
-    getEmailById,
+    generateDraftReply,
+    sendOutboundReply,
+    getAllInboundEmails,
+    getEmailWithReplies,
     updateEmailStatus,
     deleteEmail,
 };

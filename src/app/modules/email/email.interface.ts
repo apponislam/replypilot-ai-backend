@@ -1,6 +1,7 @@
-import { Document } from "mongoose";
+import { Document, Types } from "mongoose";
 
-export type InboundEmailStatus = "RECEIVED" | "PROCESSING" | "REPLIED" | "ARCHIVED" | "FAILED";
+export type EmailType = "INBOUND" | "OUTBOUND";
+export type EmailStatus = "UNREAD" | "READ" | "REPLIED" | "SENT" | "ARCHIVED";
 
 export interface IEmailAttachment {
     id?: string;
@@ -12,38 +13,27 @@ export interface IEmailAttachment {
     downloadUrl?: string;
 }
 
-export interface IEmailAiReply {
-    suggestedReply?: string;
-    model?: string;
-    tone?: string;
-    generatedAt?: Date;
-    sentAt?: Date;
-    sentReply?: string;
-    status?: "DRAFT" | "SENT" | "DISCARDED";
-}
-
 export interface IEmail extends Document {
-    emailId: string;
+    type: EmailType; // "INBOUND" from external sender, or "OUTBOUND" reply
+    replyTo?: Types.ObjectId | IEmail | null; // Ref to original email if this is a reply
+    emailId?: string; // Resend ID
     messageId?: string;
     from: string;
     to: string[];
     cc?: string[];
     bcc?: string[];
-    replyTo?: string[];
+    replyToEmail?: string;
     subject: string;
     text?: string;
     html?: string;
     summary?: string;
-    headers?: Record<string, any>;
+    aiDraft?: string; // Generated draft reply waiting for review
+    status: EmailStatus;
+    sentBy?: Types.ObjectId | null; // Admin/user who sent the reply (or null if auto-pilot)
     attachments?: IEmailAttachment[];
-    aiReply?: IEmailAiReply;
-    status: InboundEmailStatus;
-    eventType: string;
-    rawEvent?: Record<string, any>;
     createdAt: Date;
     updatedAt: Date;
 }
-
 
 export interface IResendWebhookEvent {
     type: string;

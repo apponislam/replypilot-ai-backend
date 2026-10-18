@@ -4,18 +4,14 @@ import auth from "../../middlewares/auth";
 
 const router = Router();
 
-
 /**
- * AI & Management Endpoints for Inbound Emails (Protected):
+ * Admin Email Management Routes (Protected to ADMIN only):
  */
-router.get("/ai/models", auth(["ADMIN", "USER"]), emailControllers.getOllamaModels);
-router.post("/:id/generate-reply", auth(["ADMIN", "USER"]), emailControllers.generateAiReply);
-router.post("/:id/send-reply", auth(["ADMIN", "USER"]), emailControllers.sendReply);
-
-router.get("/", auth(["ADMIN", "USER"]), emailControllers.getAllEmails);
-router.get("/:id", auth(["ADMIN", "USER"]), emailControllers.getEmailById);
-router.patch("/:id/status", auth(["ADMIN", "USER"]), emailControllers.updateEmailStatus);
+router.get("/", auth(["ADMIN"]), emailControllers.getAllInboundEmails);
+router.get("/:id", auth(["ADMIN"]), emailControllers.getEmailWithReplies);
+router.post("/:id/generate-reply", auth(["ADMIN"]), emailControllers.generateDraftReply);
+router.post("/:id/send-reply", auth(["ADMIN"]), emailControllers.sendOutboundReply);
+router.patch("/:id/status", auth(["ADMIN"]), emailControllers.updateEmailStatus);
 router.delete("/:id", auth(["ADMIN"]), emailControllers.deleteEmail);
 
 export const emailRoutes = router;
-

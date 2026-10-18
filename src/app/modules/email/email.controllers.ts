@@ -41,41 +41,80 @@ const handleResendWebhook = async (req: Request, res: Response) => {
 };
 
 /**
- * List all received emails (Protected).
+ * List all received incoming emails (Admin).
  */
-const getAllEmails = catchAsync(async (req: Request, res: Response) => {
-    const result = await emailServices.getAllEmails(req.query);
+const getAllInboundEmails = catchAsync(async (req: Request, res: Response) => {
+    const result = await emailServices.getAllInboundEmails(req.query);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,
         success: true,
-        message: "Emails retrieved successfully",
+        message: "Inbound emails retrieved successfully",
         data: result.data,
         meta: result.meta,
     });
 });
 
 /**
- * Get single email by ID (Protected).
+ * Get email details with all threaded replies (Admin).
  */
-const getEmailById = catchAsync(async (req: Request, res: Response) => {
+const getEmailWithReplies = catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    const email = await emailServices.getEmailById(id);
+    const result = await emailServices.getEmailWithReplies(id);
 
-    if (!email) {
+    if (!result) {
         throw new ApiError(httpStatus.NOT_FOUND, "Email not found");
     }
 
     sendResponse(res, {
         statusCode: httpStatus.OK,
         success: true,
-        message: "Email retrieved successfully",
+        message: "Email details and thread retrieved successfully",
+        data: result,
+    });
+});
+
+/**
+ * Admin clicks "Generate" button from dashboard to draft an AI reply.
+ */
+const generateDraftReply = catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const { tone, instructions, customPrompt } = req.body;
+
+    const email = await emailServices.generateDraftReply(id, {
+        tone,
+        instructions,
+        customPrompt,
+    });
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "AI draft reply generated successfully",
         data: email,
     });
 });
 
 /**
- * Update email status (Protected).
+ * Admin clicks "Send" button from dashboard to send reply.
+ */
+const sendOutboundReply = catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const { replyText } = req.body;
+    const adminUserId = (req as any).user?._id;
+
+    const result = await emailServices.sendOutboundReply(id, replyText, adminUserId);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Outbound reply sent and recorded successfully",
+        data: result,
+    });
+});
+
+/**
+ * Update email status (e.g. READ, ARCHIVED).
  */
 const updateEmailStatus = catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as string;
@@ -99,7 +138,7 @@ const updateEmailStatus = catchAsync(async (req: Request, res: Response) => {
 });
 
 /**
- * Delete email (Protected Admin).
+ * Delete email.
  */
 const deleteEmail = catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as string;
@@ -117,66 +156,12 @@ const deleteEmail = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-/**
- * Generate AI reply using Ollama (Protected).
- */
-const generateAiReply = catchAsync(async (req: Request, res: Response) => {
-    const id = req.params.id as string;
-    const { tone, instructions, customPrompt } = req.body;
-
-    const email = await emailServices.generateAiReply(id, {
-        tone,
-        instructions,
-        customPrompt,
-    });
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "AI reply generated successfully using Ollama",
-        data: email,
-    });
-});
-
-/**
- * Send reply to the email sender via Resend (Protected).
- */
-const sendReply = catchAsync(async (req: Request, res: Response) => {
-    const id = req.params.id as string;
-    const { replyContent } = req.body;
-
-    const email = await emailServices.sendReply(id, replyContent);
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "Reply sent successfully",
-        data: email,
-    });
-});
-
-/**
- * Get available Ollama models (Protected).
- */
-const getOllamaModels = catchAsync(async (_req: Request, res: Response) => {
-    const models = await emailServices.getOllamaModels();
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "Ollama models retrieved successfully",
-        data: models,
-    });
-});
-
 export const emailControllers = {
     handleResendWebhook,
-    getAllEmails,
-    getEmailById,
+    getAllInboundEmails,
+    getEmailWithReplies,
+    generateDraftReply,
+    sendOutboundReply,
     updateEmailStatus,
     deleteEmail,
-    generateAiReply,
-    sendReply,
-    getOllamaModels,
 };
-

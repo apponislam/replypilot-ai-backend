@@ -1,6 +1,8 @@
 import express from "express";
 import { authRoutes } from "../modules/auth/auth.routes";
 import { emailRoutes } from "../modules/email/email.routes";
+import { settingRoutes } from "../modules/setting/setting.routes";
+import { userReplyRoutes } from "../modules/userReply/userReply.routes";
 
 const router = express.Router();
 
@@ -17,7 +19,24 @@ const moduleRoutes = [
         path: "/emails",
         route: emailRoutes,
     },
+    {
+        path: "/settings",
+        route: settingRoutes,
+    },
+    {
+        path: "/setting",
+        route: settingRoutes,
+    },
+    {
+        path: "/user-replies",
+        route: userReplyRoutes,
+    },
+    {
+        path: "/user-reply",
+        route: userReplyRoutes,
+    },
 ];
+
 
 
 

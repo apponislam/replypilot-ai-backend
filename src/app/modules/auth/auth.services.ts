@@ -167,14 +167,31 @@ const resendVerificationEmail = async (email: string) => {
     user.verificationExpiry = verificationExpiry;
     await user.save();
 
-    // Send verification email
     const verificationUrl = `${config.client_url}/verify-email?token=${verificationToken}&email=${user.email}`;
     sendVerificationEmail(user.email as string, user.name as string, verificationUrl, verificationCode);
 
     return { message: "Verification email sent successfully." };
 };
 
+const checkEmailVerified = async (email: string) => {
+
+    if (!email) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Email is required");
+    }
+
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+        throw new ApiError(httpStatus.NOT_FOUND, "User with this email was not found.");
+    }
+
+    return {
+        email: user.email,
+        isEmailVerified: Boolean(user.isEmailVerified),
+    };
+};
+
 const getUserById = async (userId: string) => {
+
     const user = await UserModel.findById(userId).select("-password");
     if (!user) throw new ApiError(httpStatus.NOT_FOUND, "Requested user was not found.");
     return user;
@@ -448,7 +465,9 @@ export const authServices = {
     loginUser,
     verifyEmail,
     resendVerificationEmail,
+    checkEmailVerified,
     getUserById,
+
     refreshAccessToken,
     requestPasswordReset,
     verifyOtp,

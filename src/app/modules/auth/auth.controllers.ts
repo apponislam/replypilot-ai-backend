@@ -135,7 +135,25 @@ const resendVerificationEmail = catchAsync(async (req: Request, res: Response) =
     });
 });
 
+const checkEmailVerified = catchAsync(async (req: Request, res: Response) => {
+    const email = (req.query.email as string) || req.body?.email;
+
+    if (!email) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Email is required");
+    }
+
+    const result = await authServices.checkEmailVerified(email);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Email verification status checked successfully",
+        data: result,
+    });
+});
+
 const getMe = catchAsync(async (req: Request, res: Response) => {
+
     const user = await authServices.getUserById(req.user._id);
 
     sendResponse(res, {
@@ -399,7 +417,9 @@ export const authControllers = {
     login,
     verifyEmail,
     resendVerificationEmail,
+    checkEmailVerified,
     getMe,
+
     getUserById,
     logout,
     refreshAccessToken,

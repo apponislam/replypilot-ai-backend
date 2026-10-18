@@ -16,6 +16,7 @@ async function main() {
         await mongoose.connect(config.mongodb_url as string);
         server = http.createServer(app);
 
+
         initSocket(server);
 
         seedSuperAdmin();
