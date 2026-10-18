@@ -24,7 +24,8 @@ const UserSchema = new Schema<User>(
 
         role: {
             type: String,
-            enum: ["SUPER_ADMIN", "CLIENT", "PROVIDER"],
+            enum: ["ADMIN", "USER"],
+            default: "USER",
             required: true,
         },
 
@@ -34,58 +35,6 @@ const UserSchema = new Schema<User>(
 
         profileImage: {
             type: String,
-        },
-
-        address: {
-            street: String,
-            city: String,
-            state: String,
-            zipCode: String,
-            country: String,
-            location: {
-                type: {
-                    type: String,
-                    enum: ["Point"],
-                    default: "Point",
-                },
-                coordinates: {
-                    type: [Number],
-                },
-            },
-        },
-
-        businessDetails: {
-            businessName: String,
-            businessType: String,
-            companyRegistrationNumber: String,
-            vatNumber: String,
-        },
-
-        website: String,
-        businessDocument: String,
-        governmentIssuedId: String,
-
-        balance: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-
-        stripeAccountId: {
-            type: String,
-        },
-
-        averageRating: {
-            type: Number,
-            default: 0,
-            min: 0,
-            max: 5,
-        },
-
-        totalReviews: {
-            type: Number,
-            default: 0,
-            min: 0,
         },
 
         isActive: {
@@ -98,16 +47,6 @@ const UserSchema = new Schema<User>(
             default: false,
         },
 
-        isApproved: {
-            type: Boolean,
-            default: false,
-        },
-
-        approvedBy: {
-            type: Schema.Types.ObjectId,
-            ref: "User",
-        },
-
         isDeleted: {
             type: Boolean,
             default: false,
@@ -115,16 +54,6 @@ const UserSchema = new Schema<User>(
 
         lastLogin: {
             type: Date,
-        },
-
-        // Referral fields
-        referralCode: {
-            type: String,
-            unique: true,
-        },
-        referredBy: {
-            type: Schema.Types.ObjectId,
-            ref: "User",
         },
 
         resetPasswordOtp: String,
@@ -163,18 +92,6 @@ const UserSchema = new Schema<User>(
     },
 );
 
-UserSchema.pre("save", async function () {
-    if (this.isNew && !this.referralCode) {
-        // Generate a random 8-character uppercase alphanumeric code
-        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        let code = "";
-        for (let i = 0; i < 8; i++) {
-            code += characters.charAt(Math.floor(Math.random() * characters.length));
-        }
-        this.referralCode = code;
-    }
-});
-
 /*
 |--------------------------------------------------------------------------
 | Index Strategy (Production Safe)
@@ -183,13 +100,9 @@ UserSchema.pre("save", async function () {
 
 // Authentication lookup
 UserSchema.index({ email: 1 }, { unique: true });
-
 UserSchema.index({ role: 1 });
 UserSchema.index({ isActive: 1 });
-UserSchema.index({ referredBy: 1 });
-
 UserSchema.index({ isEmailVerified: 1 });
-UserSchema.index({ "address.location": "2dsphere" });
 
 // Token lookup indexes (important for auth flows)
 UserSchema.index({ resetPasswordToken: 1 });

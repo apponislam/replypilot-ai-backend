@@ -319,8 +319,8 @@ const deleteAccount = async (userId: string, password: string) => {
     const user = await UserModel.findById(userId);
     if (!user) throw new ApiError(httpStatus.NOT_FOUND, "Requested user was not found.");
 
-    if (user.role === "SUPER_ADMIN") {
-        throw new ApiError(httpStatus.FORBIDDEN, "Super Admin accounts cannot be deleted.");
+    if (user.role === "ADMIN") {
+        throw new ApiError(httpStatus.FORBIDDEN, "Admin accounts cannot be deleted.");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password as string);

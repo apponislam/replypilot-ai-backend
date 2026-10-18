@@ -33,15 +33,9 @@ export const initSocket = (server: http.Server) => {
             try {
                 const user = await UserModel.findById(userId);
                 if (user) {
-                    if (user.role === "SUPER_ADMIN") {
-                        socket.join("super_admins");
-                        console.log("SUPER_ADMIN joined room:", userId);
-                    } else if (user.role === "PROVIDER") {
-                        socket.join("providers");
-                        console.log(`Provider ${userId} joined providers room`);
-                    } else if (user.role === "CLIENT") {
-                        socket.join("clients");
-                        console.log(`Client ${userId} joined clients room`);
+                    if (user.role === "ADMIN") {
+                        socket.join("admins");
+                        console.log("ADMIN joined room:", userId);
                     }
                 }
             } catch (error) {

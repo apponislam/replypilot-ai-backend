@@ -7,49 +7,48 @@ export const seedSuperAdmin = async () => {
         const { email, password, name, phone } = config.initialAdmin || {};
 
         if (!name) {
-            console.log("⚠️ INITIAL_ADMIN_NAME is not provided in env, skipping super admin seeding.");
+            console.log("⚠️ INITIAL_ADMIN_NAME is not provided in env, skipping admin seeding.");
             return;
         }
         if (!email) {
-            console.log("⚠️ INITIAL_ADMIN_EMAIL is not provided in env, skipping super admin seeding.");
+            console.log("⚠️ INITIAL_ADMIN_EMAIL is not provided in env, skipping admin seeding.");
             return;
         }
         if (!password) {
-            console.log("⚠️ INITIAL_ADMIN_PASSWORD is not provided in env, skipping super admin seeding.");
+            console.log("⚠️ INITIAL_ADMIN_PASSWORD is not provided in env, skipping admin seeding.");
             return;
         }
         if (!phone) {
-            console.log("⚠️ INITIAL_ADMIN_PHONE is not provided in env, skipping super admin seeding.");
+            console.log("⚠️ INITIAL_ADMIN_PHONE is not provided in env, skipping admin seeding.");
             return;
         }
 
         const adminExists = await UserModel.findOne({
-            role: "SUPER_ADMIN",
+            role: "ADMIN",
         });
 
         if (!adminExists) {
-            console.log("📝 No super admin found, creating one...");
+            console.log("📝 No admin found, creating one...");
 
             const hashedPassword = await bcrypt.hash(password, Number(config.bcrypt_salt_rounds));
 
-            const superAdmin = {
+            const adminUser = {
                 name: name,
                 email: email,
                 password: hashedPassword,
-                role: "SUPER_ADMIN" as const,
+                role: "ADMIN" as const,
                 phone: phone,
                 isActive: true,
                 isEmailVerified: true,
-                isApproved: true,
             };
 
-            await UserModel.create(superAdmin);
+            await UserModel.create(adminUser);
 
-            console.log("✅ Super admin created:", email);
+            console.log("✅ Admin created:", email);
         } else {
-            console.log("✅ Super admin already exists, skipping creation");
+            console.log("✅ Admin already exists, skipping creation");
         }
     } catch (error) {
-        console.error("❌ Error seeding super admin:", error);
+        console.error("❌ Error seeding admin:", error);
     }
 };

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { authControllers } from "./auth.controllers";
 import auth from "../../middlewares/auth";
 import { uploadProfileImage } from "../../middlewares/multer";
-import authorize from "../../middlewares/authorized";
 const router = Router();
 
 // Public routes
@@ -16,18 +15,18 @@ router.post("/verify-otp", authControllers.verifyOtp);
 router.post("/resend-otp", authControllers.resendOtp);
 router.post("/reset-password", authControllers.resetPassword);
 // Protected routes (require auth)
-router.get("/me", auth, authControllers.getMe);
-router.post("/logout", auth, authControllers.logout);
-router.patch("/profile", auth, uploadProfileImage, authControllers.updateProfile);
-router.post("/change-password", auth, authControllers.changePassword);
-router.delete("/delete-account", auth, authControllers.deleteAccount);
-router.post("/update-email", auth, authControllers.updateEmail);
+router.get("/me", auth(), authControllers.getMe);
+router.post("/logout", auth(), authControllers.logout);
+router.patch("/profile", auth(), uploadProfileImage, authControllers.updateProfile);
+router.post("/change-password", auth(), authControllers.changePassword);
+router.delete("/delete-account", auth(), authControllers.deleteAccount);
+router.post("/update-email", auth(), authControllers.updateEmail);
 router.get("/verify-new-email", authControllers.verifyNewEmail);
-router.post("/resend-email-update", auth, authControllers.resendEmailUpdate);
+router.post("/resend-email-update", auth(), authControllers.resendEmailUpdate);
 
 // Admin only routes
-router.get("/users/:userId", auth, authorize(["SUPER_ADMIN", "ADMIN"]), authControllers.getUserById);
-router.post("/set-password/:userId", auth, authControllers.setUserPassword);
-router.patch("/users/:userId", auth, authorize(["SUPER_ADMIN"]), uploadProfileImage, authControllers.updateUserBySuperAdmin);
+router.get("/users/:userId", auth(["ADMIN"]), authControllers.getUserById);
+router.post("/set-password/:userId", auth(["ADMIN"]), authControllers.setUserPassword);
+router.patch("/users/:userId", auth(["ADMIN"]), uploadProfileImage, authControllers.updateUserBySuperAdmin);
 
 export const authRoutes = router;

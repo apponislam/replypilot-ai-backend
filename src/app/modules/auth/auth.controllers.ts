@@ -5,53 +5,36 @@ import sendResponse from "../../../utils/sendResponse";
 import config from "../../config";
 import { Request, Response } from "express";
 import { authServices } from "./auth.services";
-import { getSocket } from "../../socket/socket";
 
 const register = catchAsync(async (req: Request, res: Response) => {
-    // Extract uploaded files (profileImage, businessDocument, governmentIssuedId)
-    const userFiles: any = {};
+    let profileImage: string | undefined;
     if (req.files && !Array.isArray(req.files)) {
         const filesMap = req.files as { [fieldname: string]: Express.Multer.File[] };
-        if (filesMap["profileImage"]?.[0]) userFiles.profileImage = filesMap["profileImage"][0].filename;
-        if (filesMap["businessDocument"]?.[0]) userFiles.businessDocument = filesMap["businessDocument"][0].filename;
-        if (filesMap["governmentIssuedId"]?.[0]) userFiles.governmentIssuedId = filesMap["governmentIssuedId"][0].filename;
+        if (filesMap["profileImage"]?.[0]) profileImage = filesMap["profileImage"][0].filename;
+        else if (filesMap["image"]?.[0]) profileImage = filesMap["image"][0].filename;
     } else if (req.file) {
-        userFiles.profileImage = req.file.filename;
+        profileImage = req.file.filename;
     }
 
     // Parse the body field if it's a string
     let data: any = {};
     if (req.body.body && typeof req.body.body === "string") {
-        data = JSON.parse(req.body.body);
-    }
-
-    let addressData = data.address || req.body.address;
-    if (typeof addressData === "string") {
         try {
-            addressData = JSON.parse(addressData);
-        } catch {}
+            data = JSON.parse(req.body.body);
+        } catch {
+            data = req.body;
+        }
+    } else {
+        data = req.body;
     }
 
-    let businessDetailsData = data.businessDetails || req.body.businessDetails;
-    if (typeof businessDetailsData === "string") {
-        try {
-            businessDetailsData = JSON.parse(businessDetailsData);
-        } catch {}
-    }
-
-    // Parse JSON fields
     const userData: any = {
         name: data.name || req.body.name,
         email: data.email || req.body.email,
         password: data.password || req.body.password,
-        role: data.role || req.body.role,
+        role: data.role || req.body.role || "USER",
         phone: data.phone || req.body.phone,
-        website: data.website || req.body.website,
-        ...(userFiles.profileImage && { profileImage: userFiles.profileImage }),
-        ...(userFiles.businessDocument && { businessDocument: userFiles.businessDocument }),
-        ...(userFiles.governmentIssuedId && { governmentIssuedId: userFiles.governmentIssuedId }),
-        ...(addressData && { address: addressData }),
-        ...(businessDetailsData && { businessDetails: businessDetailsData }),
+        ...(profileImage && { profileImage }),
     };
 
     // Basic validation
@@ -249,15 +232,13 @@ const resetPassword = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
-    // Extract uploaded files (profileImage, businessDocument, governmentIssuedId)
-    const userFiles: any = {};
+    let profileImage: string | undefined;
     if (req.files && !Array.isArray(req.files)) {
         const filesMap = req.files as { [fieldname: string]: Express.Multer.File[] };
-        if (filesMap["profileImage"]?.[0]) userFiles.profileImage = filesMap["profileImage"][0].filename;
-        if (filesMap["businessDocument"]?.[0]) userFiles.businessDocument = filesMap["businessDocument"][0].filename;
-        if (filesMap["governmentIssuedId"]?.[0]) userFiles.governmentIssuedId = filesMap["governmentIssuedId"][0].filename;
+        if (filesMap["profileImage"]?.[0]) profileImage = filesMap["profileImage"][0].filename;
+        else if (filesMap["image"]?.[0]) profileImage = filesMap["image"][0].filename;
     } else if (req.file) {
-        userFiles.profileImage = req.file.filename;
+        profileImage = req.file.filename;
     }
 
     let data: any = {};
@@ -276,36 +257,11 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
         data = req.body;
     }
 
-    // Parse address if it comes as a JSON string
-    let parsedAddress = data.address;
-    if (typeof parsedAddress === "string") {
-        try {
-            parsedAddress = JSON.parse(parsedAddress);
-        } catch {
-            // Keep original if not JSON
-        }
-    }
-
-    // Parse businessDetails if it comes as a JSON string
-    let parsedBusinessDetails = data.businessDetails;
-    if (typeof parsedBusinessDetails === "string") {
-        try {
-            parsedBusinessDetails = JSON.parse(parsedBusinessDetails);
-        } catch {
-            // Keep original if not JSON
-        }
-    }
-
     // Construct update data based on the provided fields
     const updateData: any = {
         ...(data.name && { name: data.name }),
         ...(data.phone && { phone: data.phone }),
-        ...(data.website && { website: data.website }),
-        ...(userFiles.profileImage && { profileImage: userFiles.profileImage }),
-        ...(userFiles.businessDocument && { businessDocument: userFiles.businessDocument }),
-        ...(userFiles.governmentIssuedId && { governmentIssuedId: userFiles.governmentIssuedId }),
-        ...(parsedAddress && { address: parsedAddress }),
-        ...(parsedBusinessDetails && { businessDetails: parsedBusinessDetails }),
+        ...(profileImage && { profileImage }),
     };
 
     const updatedUser = await authServices.updateProfile(req.user._id, updateData);
@@ -409,15 +365,11 @@ const updateUserBySuperAdmin = catchAsync(async (req: Request, res: Response) =>
     }
 
     if (req.file) {
-        updateData.profileImage = `/uploads/profile-images/${req.file.filename}`;
-    }
-
-    if (typeof updateData.address === "string") {
-        try {
-            updateData.address = JSON.parse(updateData.address);
-        } catch {
-            // Keep original if not JSON
-        }
+        updateData.profileImage = req.file.filename;
+    } else if (req.files && !Array.isArray(req.files)) {
+        const filesMap = req.files as { [fieldname: string]: Express.Multer.File[] };
+        if (filesMap["profileImage"]?.[0]) updateData.profileImage = filesMap["profileImage"][0].filename;
+        else if (filesMap["image"]?.[0]) updateData.profileImage = filesMap["image"][0].filename;
     }
 
     const result = await authServices.updateUserBySuperAdmin(userId as string, updateData);
