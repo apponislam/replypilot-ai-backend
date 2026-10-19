@@ -5,24 +5,28 @@ export const sendVerificationEmail = (email: string, name: string, verificationU
     const html = `
         <div style="font-family: Arial, sans-serif; width: 100%; max-width: 500px; margin: 0 auto; padding: 24px; background: white; border: 1px solid #f0f0f0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); box-sizing: border-box;">
             <h2 style="color: #1a1a1a; margin-top: 0; font-size: 20px;">Hello ${name},</h2>
-            <p style="color: #4a4a4a; line-height: 1.6; font-size: 14px;">Please verify your email address by clicking the button below:</p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="${verificationUrl}" target="_blank" style="background-color: #0B6E7F; background-image: linear-gradient(to right, #0B6E7F, #0ea5e9); color: #ffffff !important; padding: 12px 30px; text-decoration: none !important; border-radius: 24px; display: inline-block; font-weight: 500; font-size: 14px; text-align: center; border: none;">Verify Email</a>
-            </div>
-            <p style="color: #8a8a8a; font-size: 12px; line-height: 1.6; word-break: break-all;">Or copy this link: <span style="word-break: break-all;">${verificationUrl}</span></p>
-            ${""/*
+            <p style="color: #4a4a4a; line-height: 1.6; font-size: 14px;">Thank you for registering with ReplyPilot! Please verify your email address using the 6-digit verification code (OTP) or by clicking the button below:</p>
+            
+            ${
                 otp
-                    ? `<div style="margin-top: 24px; padding: 16px; background: #fffaf0; border-radius: 8px; border: 1px solid #ffe8b8;">
-                        <p style="color: #0B6E7F; font-size: 14px; text-align: center; margin: 0 0 8px 0;">Or enter this 6-digit code in the app:</p>
-                        <p style="color: #1a1a1a; font-size: 28px; text-align: center; margin: 0; font-weight: bold; letter-spacing: 6px;">${otp}</p>
-                        <p style="color: #8a8a8a; font-size: 12px; text-align: center; margin: 8px 0 0 0;">OTP expires in 10 minutes.</p>
+                    ? `<div style="margin: 24px 0; padding: 20px; background: #fffaf0; border-radius: 12px; border: 1px solid #ffe8b8; text-align: center;">
+                        <p style="color: #0B6E7F; font-size: 13px; margin: 0 0 8px 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Your Verification Code (OTP)</p>
+                        <p style="color: #1a1a1a; font-size: 34px; margin: 8px 0; font-weight: 800; letter-spacing: 8px; font-family: monospace;">${otp}</p>
+                        <p style="color: #8a8a8a; font-size: 12px; margin: 8px 0 0 0;">Enter this 6-digit code in the app to verify your account.</p>
                        </div>`
                     : ""
-            */}
-            <p style="color: #8a8a8a; font-size: 12px; margin-top: 24px;">This link expires in 24 hours.</p>
+            }
+
+            <div style="text-align: center; margin: 28px 0;">
+                <a href="${verificationUrl}" target="_blank" style="background-color: #0B6E7F; background-image: linear-gradient(to right, #0B6E7F, #0ea5e9); color: #ffffff !important; padding: 12px 30px; text-decoration: none !important; border-radius: 24px; display: inline-block; font-weight: 600; font-size: 14px; text-align: center; border: none;">Verify Email Address</a>
+            </div>
+
+            <p style="color: #8a8a8a; font-size: 12px; line-height: 1.6; word-break: break-all;">Or copy this link: <span style="word-break: break-all;">${verificationUrl}</span></p>
+            <p style="color: #8a8a8a; font-size: 12px; margin-top: 20px;">This code and verification link expire in 24 hours.</p>
         </div>
     `;
-    sendMail(email, "Verify Your Email", html);
+    const subject = otp ? `Verify Your Email - OTP: ${otp}` : "Verify Your Email - ReplyPilot";
+    sendMail(email, subject, html);
 };
 
 export const sendOtpEmail = (email: string, otp: string, name?: string) => {

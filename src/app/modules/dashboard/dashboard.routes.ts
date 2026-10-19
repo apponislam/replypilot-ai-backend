@@ -4,7 +4,7 @@ import { dashboardControllers } from "./dashboard.controllers";
 
 const router = Router();
 
-router.get("/", auth(["ADMIN", "USER"]), dashboardControllers.getDashboardStats);
-router.get("/stats", auth(["ADMIN", "USER"]), dashboardControllers.getDashboardStats);
+router.get("/", auth(), dashboardControllers.getDashboardStats);
+router.get("/stats", auth(), dashboardControllers.getDashboardStats);
 
 export const dashboardRoutes = router;

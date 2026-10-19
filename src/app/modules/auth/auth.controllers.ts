@@ -105,9 +105,9 @@ const login = catchAsync(async (req: Request, res: Response) => {
 });
 
 const verifyEmail = catchAsync(async (req: Request, res: Response) => {
-    const token = req.query.token as string | undefined;
-    const otp = req.query.otp as string | undefined;
-    const email = req.query.email as string;
+    const token = (req.query.token || req.body?.token) as string | undefined;
+    const otp = (req.query.otp || req.body?.otp || req.body?.code) as string | undefined;
+    const email = (req.query.email || req.body?.email) as string;
 
     if (!email) {
         throw new ApiError(httpStatus.BAD_REQUEST, "Email is required");

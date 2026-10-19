@@ -4,7 +4,7 @@ import auth from "../../middlewares/auth";
 
 const router = Router();
 
-router.get("/", auth(["ADMIN", "USER"]), settingControllers.getSettings);
-router.patch("/", auth(["ADMIN", "USER"]), settingControllers.updateSettings);
+router.get("/", auth(), settingControllers.getSettings);
+router.patch("/", auth(), settingControllers.updateSettings);
 
 export const settingRoutes = router;
