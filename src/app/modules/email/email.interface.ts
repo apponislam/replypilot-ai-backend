@@ -1,7 +1,7 @@
 import { Document, Types } from "mongoose";
 
 export type EmailType = "INBOUND" | "OUTBOUND";
-export type EmailStatus = "UNREAD" | "READ" | "REPLIED" | "SENT" | "ARCHIVED";
+export type EmailStatus = "UNREAD" | "READ" | "REPLIED" | "AUTO_REPLIED" | "SENT" | "ARCHIVED";
 
 export interface IEmailAttachment {
     id?: string;

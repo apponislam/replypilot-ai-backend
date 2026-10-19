@@ -159,24 +159,44 @@ const handleInboundEmailReceived = async (event: IResendWebhookEvent) => {
 
             const aiDraft = aiResult?.reply || "";
 
-            // Update inbound email with summary & draft
-            const updatedInbound = await EmailModel.findByIdAndUpdate(
-                inboundEmail._id,
-                {
-                    ...(summary && { summary }),
-                    ...(aiDraft && { aiDraft }),
-                },
-                { returnDocument: "after" }
-            );
-
-            sendToRoom("admins", "email_draft_ready", updatedInbound);
-
-            // 3. If Auto-Reply is enabled, send reply automatically!
+            // 3. If Auto-Reply is enabled, immediately dispatch outbound reply with AUTO_REPLIED status
             if (settings.isAutoReply && aiDraft) {
-                console.log(`🚀 [Auto-Reply] Auto-reply is ON. Sending reply to ${fromAddress}...`);
-                await sendOutboundReply(inboundEmail._id.toString(), aiDraft, null);
+                console.log(`🚀 [Auto-Reply] Auto-reply is ON. Sending auto-reply to ${fromAddress}...`);
+
+                // Save draft & summary first
+                await EmailModel.findByIdAndUpdate(
+                    inboundEmail._id,
+                    {
+                        ...(summary && { summary }),
+                        ...(aiDraft && { aiDraft }),
+                    }
+                );
+
+                // Send outbound auto-reply (sets inbound status to "AUTO_REPLIED")
+                const replyResult = await sendOutboundReply(
+                    inboundEmail._id.toString(),
+                    aiDraft,
+                    null,
+                    true // isAuto = true -> AUTO_REPLIED
+                );
+
+                console.log(`✅ [Auto-Reply] Email auto-replied successfully. Status set to AUTO_REPLIED.`);
+                sendToRoom("admins", "email_auto_replied", replyResult.inboundEmail);
+                sendToRoom("admins", "email_updated", replyResult.inboundEmail);
             } else {
                 console.log(`ℹ️ [Auto-Reply] Auto-reply is OFF. Draft saved for admin review.`);
+                // Update inbound email with summary & draft, keeping status as UNREAD
+                const updatedInbound = await EmailModel.findByIdAndUpdate(
+                    inboundEmail._id,
+                    {
+                        ...(summary && { summary }),
+                        ...(aiDraft && { aiDraft }),
+                    },
+                    { returnDocument: "after" }
+                );
+
+                sendToRoom("admins", "email_draft_ready", updatedInbound);
+                sendToRoom("admins", "email_updated", updatedInbound);
             }
         } catch (err: any) {
             console.error("⚠️ [Email Background Processing Error]:", err.message);
@@ -235,12 +255,13 @@ const generateDraftReply = async (
  * Send an outbound reply to an inbound email (Admin Send Button or Auto-Pilot):
  * 1. Sends email via Resend.
  * 2. Creates a new OUTBOUND Email record with replyTo: inboundEmail._id (as reference!).
- * 3. Updates inbound email status to "REPLIED".
+ * 3. Updates inbound email status to "AUTO_REPLIED" (if auto-pilot) or "REPLIED" (if admin).
  */
 const sendOutboundReply = async (
     inboundEmailId: string,
     replyText?: string,
-    adminUserId?: string | null
+    adminUserId?: string | null,
+    isAuto: boolean = false
 ): Promise<{ inboundEmail: IEmail; outboundEmail: IEmail }> => {
     const inboundEmail = await EmailModel.findById(inboundEmailId);
     if (!inboundEmail) {
@@ -273,6 +294,9 @@ const sendOutboundReply = async (
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send email via Resend");
     }
 
+    // Determine target status: AUTO_REPLIED if auto-pilot / no admin, else REPLIED
+    const targetStatus: EmailStatus = isAuto || !adminUserId ? "AUTO_REPLIED" : "REPLIED";
+
     // Create Outbound Email Record referencing the inbound email
     const outboundEmail = await EmailModel.create({
         type: "OUTBOUND",
@@ -286,16 +310,27 @@ const sendOutboundReply = async (
         sentBy: adminUserId ? (adminUserId as any) : null,
     });
 
-    // Mark original email as REPLIED
+    // Mark original email with the target status
     const updatedInbound = await EmailModel.findByIdAndUpdate(
         inboundEmail._id,
-        { status: "REPLIED" },
+        { status: targetStatus },
         { returnDocument: "after" }
     );
 
+    // Notify connected clients with detailed status and the updated email
     sendToRoom("admins", "email_replied", {
         inboundEmailId: inboundEmail._id,
         outboundReplyId: outboundEmail._id,
+        inboundEmail: updatedInbound,
+        status: targetStatus,
+        isAutoReply: isAuto || !adminUserId,
+    });
+
+    sendToRoom("admins", "email_updated", updatedInbound);
+    sendToRoom("admins", "email_status_updated", {
+        id: inboundEmail._id,
+        status: targetStatus,
+        email: updatedInbound,
     });
 
     return {

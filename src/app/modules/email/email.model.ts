@@ -78,7 +78,7 @@ const EmailSchema = new Schema<IEmail>(
         },
         status: {
             type: String,
-            enum: ["UNREAD", "READ", "REPLIED", "SENT", "ARCHIVED"],
+            enum: ["UNREAD", "READ", "REPLIED", "AUTO_REPLIED", "SENT", "ARCHIVED"],
             default: "UNREAD",
             index: true,
         },
