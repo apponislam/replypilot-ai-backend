@@ -10,6 +10,8 @@ export interface IUserReply extends Document {
     generatedReply: string; // The AI-generated reply
     tone: "professional" | "friendly" | "concise" | "formal" | "casual";
     customInstructions?: string;
+    senderName?: string;
+    senderEmail?: string;
     status: UserReplyStatus;
     sentAt?: Date;
     createdAt: Date;

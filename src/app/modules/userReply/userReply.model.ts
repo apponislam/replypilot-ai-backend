@@ -36,6 +36,12 @@ const UserReplySchema = new Schema<IUserReply>(
             type: String,
             default: "",
         },
+        senderName: {
+            type: String,
+        },
+        senderEmail: {
+            type: String,
+        },
         status: {
             type: String,
             enum: ["DRAFT", "SENT"],

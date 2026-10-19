@@ -13,7 +13,13 @@ const getResendClient = (): Resend | null => {
     return resendClient;
 };
 
-export const sendMail = async (to: string | string[], subject: string, html: string, from?: string) => {
+export const sendMail = async (
+    to: string | string[],
+    subject: string,
+    html: string,
+    from?: string,
+    replyTo?: string | string[]
+) => {
     try {
         const client = getResendClient();
         if (!client) {
@@ -29,6 +35,7 @@ export const sendMail = async (to: string | string[], subject: string, html: str
             to: recipients,
             subject,
             html,
+            ...(replyTo ? { replyTo } : {}),
         });
 
         if (error) {

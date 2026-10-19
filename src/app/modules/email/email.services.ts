@@ -7,6 +7,7 @@ import { generateEmailReply, summarizeEmail } from "../../../utils/ollama";
 import { settingServices } from "../setting/setting.services";
 import { EmailModel } from "./email.model";
 import { IEmail, IResendWebhookEvent, EmailStatus } from "./email.interface";
+import { UserModel } from "../auth/auth.model";
 import { sendToRoom } from "../../socket/socket";
 
 /**
@@ -273,23 +274,65 @@ const sendOutboundReply = async (
         throw new ApiError(httpStatus.BAD_REQUEST, "No reply content to send. Generate or enter a reply first.");
     }
 
+    // Resolve sender details
+    let senderName = "ReplyPilot Support";
+    let replyToEmail: string | undefined = undefined;
+
+    if (adminUserId) {
+        const adminUser = await UserModel.findById(adminUserId);
+        const adminSettings = await settingServices.getSettings(adminUserId);
+        senderName = (adminSettings?.senderName && adminSettings.senderName !== "ReplyPilot")
+            ? adminSettings.senderName
+            : (adminUser?.name || "ReplyPilot Support");
+        replyToEmail = (adminSettings?.senderEmail && adminSettings.senderEmail !== "replypilotai@apponislam.top")
+            ? adminSettings.senderEmail
+            : (adminUser?.email || undefined);
+    } else {
+        const defaultSettings = await settingServices.getSettings();
+        if (defaultSettings?.senderName) {
+            senderName = defaultSettings.senderName;
+        }
+        if (defaultSettings?.senderEmail && defaultSettings.senderEmail !== "replypilotai@apponislam.top") {
+            replyToEmail = defaultSettings.senderEmail;
+        }
+    }
+
+    const defaultFrom = config.resend.from_email || "replypilotai@apponislam.top";
+    const match = defaultFrom.match(/<([^>]+)>/);
+    const baseEmail = match ? match[1].trim() : defaultFrom.trim();
+
+    const fromAddress = senderName.toLowerCase().includes("replypilot")
+        ? `${senderName} <${baseEmail}>`
+        : `${senderName} via ReplyPilot <${baseEmail}>`;
+
     const replySubject = inboundEmail.subject.startsWith("Re:")
         ? inboundEmail.subject
         : `Re: ${inboundEmail.subject}`;
 
     const htmlContent = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
-            <p>${textToSend.replace(/\n/g, "<br/>")}</p>
-            <br/>
-            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;"/>
-            <p style="font-size: 12px; color: #888;">
-                In reply to your message: <em>"${inboundEmail.subject}"</em>
-            </p>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 24px 16px;">
+            <div style="font-size: 15px; color: #1f2937; white-space: pre-wrap; margin-bottom: 24px;">${textToSend}</div>
+            
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; font-size: 14px; font-weight: 600; color: #111827;">
+                    ${senderName}
+                </p>
+                ${replyToEmail ? `<p style="margin: 3px 0 0; font-size: 13px; color: #6b7280;">Email: <a href="mailto:${replyToEmail}" style="color: #4f46e5; text-decoration: none;">${replyToEmail}</a></p>` : ""}
+                <p style="margin: 12px 0 0; font-size: 12px; color: #9ca3af;">
+                    Sent by <strong>${senderName}</strong> ${replyToEmail ? `(${replyToEmail})` : ""} via <strong>ReplyPilot AI</strong> &bull; In reply to: <em>"${inboundEmail.subject}"</em>
+                </p>
+            </div>
         </div>
     `;
 
     // Send email via Resend
-    const resendResult = await sendMail(inboundEmail.from, replySubject, htmlContent);
+    const resendResult = await sendMail(
+        inboundEmail.from,
+        replySubject,
+        htmlContent,
+        fromAddress,
+        replyToEmail
+    );
     if (!resendResult) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send email via Resend");
     }
@@ -302,7 +345,7 @@ const sendOutboundReply = async (
         type: "OUTBOUND",
         replyTo: inboundEmail._id,
         emailId: resendResult?.id,
-        from: config.resend.from_email || "replypilotai@apponislam.top",
+        from: fromAddress,
         to: [inboundEmail.from],
         subject: replySubject,
         text: textToSend,

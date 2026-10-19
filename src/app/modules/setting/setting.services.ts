@@ -17,8 +17,14 @@ const getSettings = async (userId?: string): Promise<ISetting> => {
     if (targetUserId) {
         let settings = await SettingModel.findOne({ user: targetUserId });
         if (!settings) {
+            const user = await UserModel.findById(targetUserId);
             settings = await SettingModel.create({
                 user: targetUserId,
+                senderName: user?.name || "ReplyPilot",
+                senderEmail: user?.email || "replypilotai@apponislam.top",
+                instructions: user?.name
+                    ? `Be polite, professional, and clear. Sign off warmly as ${user.name}.`
+                    : "Be polite, professional, and clear. Sign off warmly as the ReplyPilot Team.",
                 updatedBy: targetUserId as any,
             });
         }
