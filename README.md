@@ -27,6 +27,49 @@ Instead of relying on costly third-party AI APIs (such as OpenAI or Anthropic), 
 
 ---
 
+## 🦙 Open-Source AI Model (Running via Cloudflare Tunnel)
+
+### 🔴 Live Model Status: Active & Ready
+The open-source AI engine is **currently running 24/7 on my private machine** and exposed through my personal **Cloudflare Tunnel**:
+
+- **Model**: `llama3.2:3b` (Meta's lightweight multilingual LLM)
+- **Live Endpoint**: `https://ollama.apponislam.top`
+- **Health Check**: `https://ollama.apponislam.top/api/tags`
+
+You don't need to configure any tunnels or set up complicated cloud deployments. The backend is already configured out-of-the-box to connect to this live tunnel endpoint:
+
+```env
+OLLAMA_HOST=https://ollama.apponislam.top
+OLLAMA_MODEL=llama3.2:3b
+```
+
+---
+
+### 💻 (Optional) Running Ollama Locally on Your Own Machine
+
+If you prefer to run the model completely offline on your own computer instead of using my live Cloudflare Tunnel:
+
+1. **Install Ollama**:
+   - **Windows**: Download from [ollama.com/download/windows](https://ollama.com/download/windows)
+   - **macOS**: `brew install ollama`
+   - **Linux**: `curl -fsSL https://ollama.com/install.sh | sh`
+
+2. **Pull and Run `llama3.2:3b`**:
+   ```bash
+   ollama run llama3.2:3b
+   ```
+   Ollama will start serving locally at `http://localhost:11434`.
+
+3. **Update your `.env`**:
+   ```env
+   OLLAMA_HOST=http://localhost:11434
+   OLLAMA_MODEL=llama3.2:3b
+   ```
+
+---
+
+
+
 ## ✨ Core Features
 
 1. **⚡ Inbound Email Ingestion (Resend Webhook)**
