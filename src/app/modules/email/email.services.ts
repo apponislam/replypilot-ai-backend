@@ -301,6 +301,7 @@ const sendOutboundReply = async (
     const outboundEmail = await EmailModel.create({
         type: "OUTBOUND",
         replyTo: inboundEmail._id,
+        emailId: resendResult?.id,
         from: config.resend.from_email || "replypilotai@apponislam.top",
         to: [inboundEmail.from],
         subject: replySubject,
@@ -398,6 +399,20 @@ const getEmailWithReplies = async (id: string) => {
 
     if (!email) {
         return null;
+    }
+
+    // Automatically mark as READ if currently UNREAD
+    if (email.status === "UNREAD") {
+        email.status = "READ";
+        await email.save();
+
+        // Broadcast real-time status update so lists and badges update immediately
+        sendToRoom("admins", "email_status_updated", {
+            id: email._id,
+            status: "READ",
+            email,
+        });
+        sendToRoom("admins", "email_updated", email);
     }
 
     // Find all replies that reference this email
