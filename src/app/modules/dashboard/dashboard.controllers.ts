@@ -8,7 +8,8 @@ import { dashboardServices } from "./dashboard.services";
  * Get basic dashboard statistics.
  */
 const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
-    const result = await dashboardServices.getDashboardStats();
+    const userId = (req as any).user?._id;
+    const result = await dashboardServices.getDashboardStats(userId);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,

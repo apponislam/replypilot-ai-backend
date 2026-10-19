@@ -3,6 +3,13 @@ import { ISetting } from "./setting.interface";
 
 const SettingSchema = new Schema<ISetting>(
     {
+        user: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+            unique: true,
+            index: true,
+        },
         isAutoReply: {
             type: Boolean,
             default: false,

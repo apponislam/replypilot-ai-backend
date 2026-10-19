@@ -5,6 +5,7 @@ import { generateEmailReply } from "../../../utils/ollama";
 import { sendMail } from "../../../utils/resend";
 import { UserReplyModel } from "./userReply.model";
 import { IUserReply } from "./userReply.interface";
+import { settingServices } from "../setting/setting.services";
 
 /**
  * Generate a reply for a user and save the draft.
@@ -23,7 +24,9 @@ const generateReply = async (
         throw new ApiError(httpStatus.BAD_REQUEST, "recipientEmail and incomingMessage are required");
     }
 
-    const tone = payload.tone || "professional";
+    const userSettings = await settingServices.getSettings(userId);
+    const tone = payload.tone || userSettings?.tone || "professional";
+    const customInstructions = payload.customInstructions || userSettings?.instructions || "";
 
     // Call local Ollama
     const aiResult = await generateEmailReply({
@@ -31,7 +34,7 @@ const generateReply = async (
         subject: payload.subject || "Reply",
         content: payload.incomingMessage,
         tone,
-        instructions: payload.customInstructions,
+        instructions: customInstructions,
     });
 
     const userReply = await UserReplyModel.create({
@@ -41,7 +44,7 @@ const generateReply = async (
         incomingMessage: payload.incomingMessage,
         generatedReply: aiResult.reply,
         tone,
-        customInstructions: payload.customInstructions || "",
+        customInstructions,
         status: "DRAFT",
     });
 

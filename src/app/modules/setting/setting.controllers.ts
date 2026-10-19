@@ -4,8 +4,9 @@ import catchAsync from "../../../utils/catchAsync";
 import sendResponse from "../../../utils/sendResponse";
 import { settingServices } from "./setting.services";
 
-const getSettings = catchAsync(async (_req: Request, res: Response) => {
-    const result = await settingServices.getSettings();
+const getSettings = catchAsync(async (req: Request, res: Response) => {
+    const userId = (req as any).user?._id;
+    const result = await settingServices.getSettings(userId);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,

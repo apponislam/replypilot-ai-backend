@@ -5,7 +5,7 @@ import { settingServices } from "../setting/setting.services";
 /**
  * Get basic dashboard statistics.
  */
-const getDashboardStats = async () => {
+const getDashboardStats = async (userId?: string) => {
     const [
         totalEmails,
         unreadEmails,
@@ -21,7 +21,7 @@ const getDashboardStats = async () => {
         EmailModel.countDocuments({ type: "INBOUND", status: "AUTO_REPLIED" }),
         EmailModel.countDocuments({ type: "INBOUND", status: "REPLIED" }),
         UserModel.countDocuments(),
-        settingServices.getSettings(),
+        settingServices.getSettings(userId),
     ]);
 
     return {
